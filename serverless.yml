@@ -1,0 +1,99 @@
+# Welcome to Serverless Go Dynamodb Lambda Microservice!
+#
+# For full config options, check the docs:
+#    docs.serverless.com
+
+service: serverless-go-dynamodb-microservice
+
+custom:
+  productsTableName: ${self:service}-${self:provider.stage}-products
+  productsTableArn:
+    Fn::Join:
+    - ":"
+    - - arn
+      - aws
+      - dynamodb
+      - Ref: AWS::Region
+      - Ref: AWS::AccountId
+      - table/${self:custom.productsTableName}
+
+provider:
+  name: aws
+  runtime: go1.x
+  stage: dev
+  region: us-west-1
+  environment:
+    PRODUCTS_TABLE_NAME: ${self:custom.productsTableName}
+  iamRoleStatements: # Setup Dynamodb permissions
+    - Effect: Allow
+      Action:
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+      Resource:
+        - ${self:custom.productsTableArn}
+
+package:
+ individually: true
+ exclude:
+   - ./**
+
+functions:
+  listProducts:
+    handler: bin/handlers/listProducts
+    package:
+     include:
+       - ./bin/handlers/listProducts
+    events:
+      - http:
+          path: products
+          method: get
+          cors: true
+  addProduct:
+    handler: bin/handlers/addProduct
+    package:
+      include:
+        - ./bin/handlers/addProduct
+    events:
+      - http:
+          path: products
+          method: post
+          cors: true
+  completeProduct:
+    handler: bin/handlers/completeProduct
+    package:
+      include:
+        - ./bin/handlers/completeProduct
+    events:
+      - http:
+          path: products/{id}
+          method: patch
+          cors: true
+  deleteProduct:
+      handler: bin/handlers/deleteProduct
+      package:
+        include:
+          - ./bin/handlers/deleteProduct
+      events:
+        - http:
+            path: products/{id}
+            method: delete
+            cors: true
+
+resources:
+  Resources:
+    ProductsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.productsTableName}
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
